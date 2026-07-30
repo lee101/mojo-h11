@@ -1,0 +1,20 @@
+[workspace]
+authors = ["Lee Penkman <leepenkman@gmail.com>"]
+channels = ["https://conda.modular.com/max-nightly", "conda-forge"]
+name = "mojo-h11"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+build = "bash build/build.sh"
+test = { cmd = "python -m pytest tests -q", depends-on = ["build"] }
+bench = { cmd = "flock /tmp/mojo-bench.lock python bench/bench.py", depends-on = ["build"] }
+
+[activation.env]
+PYTHONPATH = "python"
+
+[dependencies]
+mojo = "==1.0.0b3.dev2026072406"
+python = "3.13.*"
+pytest = "*"
+h11 = ">=0.16,<0.17"

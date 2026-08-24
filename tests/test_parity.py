@@ -395,7 +395,7 @@ def test_native_scanner_rejects_invalid_result():
         _lib._call_scanner(invalid_result, bytearray(b"x"), 0)
 
 
-@pytest.mark.parametrize("size", [1023, 1024])
+@pytest.mark.parametrize("size", [16 * 1024 - 1, 16 * 1024])
 def test_header_scan_size_threshold_parity(size):
     payload = b"X: " + b"a" * (size - 7) + b"\r\n\r\n"
     outputs = []

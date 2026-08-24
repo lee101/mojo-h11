@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import List, Optional, Union
 
+from h11._receivebuffer import blank_line_regex
+
 from ._lib import find_crlf, find_headers_end
 
 
-_SMALL_SCAN_LIMIT = 1024
+_NATIVE_SCAN_LIMIT = 16 * 1024
 
 
 class ReceiveBuffer:
@@ -57,16 +59,11 @@ class ReceiveBuffer:
         if len(self._data) >= 2 and self._data[0] == 13 and self._data[1] == 10:
             self._extract(2)
             return []
-        if len(self._data) < _SMALL_SCAN_LIMIT:
-            search_start = max(0, self._multiple_lines_search - 2)
-            lf_end = self._data.find(b"\n\n", search_start)
-            crlf_end = self._data.find(b"\n\r\n", search_start)
-            if lf_end < 0:
-                end = crlf_end + 3 if crlf_end >= 0 else -1
-            elif crlf_end < 0:
-                end = lf_end + 2
-            else:
-                end = min(lf_end + 2, crlf_end + 3)
+        if len(self._data) < _NATIVE_SCAN_LIMIT:
+            match = blank_line_regex.search(
+                self._data, self._multiple_lines_search
+            )
+            end = match.span(0)[-1] if match is not None else -1
         else:
             end = find_headers_end(self._data, self._multiple_lines_search)
         if end < 0:

@@ -33,19 +33,21 @@ def find_headers_end(addr: Int, n: Int, start: Int) abi("C") -> Int:
     var i = max(start, 1)
     if i > 2:
         i -= 2
+    while i < min(n, 2):
+        if data[i] == 10 and data[i - 1] == 10:
+            return i + 1
+        i += 1
     while i + BYTE_W <= n:
-        var candidates = data.load[width=BYTE_W](i).eq(10)
+        var current = data.load[width=BYTE_W](i)
+        var previous = data.load[width=BYTE_W](i - 1)
+        var before_previous = data.load[width=BYTE_W](i - 2)
+        var candidates = current.eq(10) & (
+            previous.eq(10) | (previous.eq(13) & before_previous.eq(10))
+        )
         if candidates.reduce_or():
             for j in range(BYTE_W):
-                if data[i + j] == 10:
-                    if data[i + j - 1] == 10:
-                        return i + j + 1
-                    if (
-                        i + j >= 2
-                        and data[i + j - 1] == 13
-                        and data[i + j - 2] == 10
-                    ):
-                        return i + j + 1
+                if candidates[j]:
+                    return i + j + 1
         i += BYTE_W
     while i < n:
         if data[i] == 10:

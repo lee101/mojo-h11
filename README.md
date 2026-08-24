@@ -77,20 +77,21 @@ the best of three runs and reports time per complete operation. The same h11
 
 | case | mojo-h11 | h11 0.16 | relative |
 | --- | ---: | ---: | ---: |
-| parse minimal request | 33.44 us/op | 38.56 us/op | 1.15x faster |
-| parse request with 100 headers | 291.64 us/op | 276.59 us/op | 1.05x slower |
-| parse 12 KiB fragmented header | 176.23 us/op | 174.94 us/op | 1.01x slower |
-| parse 256 KiB chunked response | 459.13 us/op | 531.71 us/op | 1.16x faster |
-| scan and split 62 KiB header block | 135.64 us/op | 160.47 us/op | 1.18x faster |
+| parse minimal request | 38.22 us/op | 41.04 us/op | 1.07x faster |
+| parse request with 100 headers | 292.84 us/op | 298.85 us/op | 1.02x faster |
+| parse 12 KiB fragmented header | 179.06 us/op | 170.50 us/op | 1.05x slower |
+| parse 256 KiB chunked response | 374.74 us/op | 511.49 us/op | 1.36x faster |
+| scan and split 62 KiB header block | 123.56 us/op | 159.90 us/op | 1.29x faster |
 
-Mojo wins three of the five cases in this run, by up to 1.18x. It is 1.05x
-and 1.01x slower in the other two cases. The benchmark intentionally includes
-those losses. Run `pixi run bench` to reproduce the table under the
-machine-wide benchmark lock.
+Mojo wins four of the five cases in this run, by up to 1.36x. It is 1.05x
+slower on the fragmented-header case. The benchmark intentionally includes
+that loss. Run `pixi run bench` to reproduce the table under the machine-wide
+benchmark lock.
 
-There is no parallel or GPU path. These delimiter scanners do roughly one byte
-load and one or two comparisons per input byte, far below the arithmetic
-intensity needed to repay thread-launch or host/device-transfer overhead.
+There is no parallel or GPU path. Finding the first delimiter is sequential,
+and these scanners do overlapping byte loads and delimiter comparisons, with
+no arithmetic work. That is far too little arithmetic intensity to repay
+thread-launch or host/device-transfer overhead.
 
 ## How it works
 
@@ -99,10 +100,11 @@ receive buffer. The replacement has the same extraction contract and keeps
 the same incremental search offsets, so fragmented input is scanned once
 instead of repeatedly from the beginning.
 
-Python owns one contiguous `bytearray`. Header-block scans under 1 KiB use
-CPython's in-process byte search to avoid fixed FFI overhead. Larger
+Python owns one contiguous `bytearray`. Header-block scans under 16 KiB use
+h11's compiled in-process delimiter matcher to avoid fixed FFI overhead. Larger
 header-block scans pass a zero-copy writable buffer address to Mojo, which
-checks a full byte SIMD vector per iteration and finishes with a scalar tail.
+compares the current and two preceding full byte SIMD vectors per iteration to
+detect complete delimiters, then finishes with a scalar tail.
 CRLF line scans also use Mojo. A live ctypes buffer export pins the allocation
 for each native call, including while ctypes releases the GIL. The single Mojo
 compilation unit reconstructs the address as
